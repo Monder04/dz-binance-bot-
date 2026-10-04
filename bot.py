@@ -103,7 +103,7 @@ def run_bot():
         app.add_handler(CommandHandler("trader", trader_cmd))
         app.add_handler(CommandHandler("sub", sub_cmd))
         app.add_handler(CommandHandler("help", help_cmd))
-        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES, stop_signals=None)
     except Exception as e:
         logger.error(f"Bot crashed: {e}")
 
