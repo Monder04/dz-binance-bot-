@@ -26,14 +26,15 @@ def webhook():
     if "message" in data:
         chat_id = data["message"]["chat"]["id"]
         text = data["message"].get("text", "")
-        
+
         if text == "/start":
-            reply = "مرحبا! 🎉\nرابط الإحالة تاعك:\nhttps://t.me/dz_binance_copy_bot?start=945179068\n\nالمرجع: 945179068"
+            reply = "مرحبا! 🎉\nرابط الاحالة تاعك:\nhttps://t.me/dz_binance_copy_bot?start=945179068\n\nالمرجع: 945179068"
         else:
             reply = f"استقبلت: {text}"
-        
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                       json={"chat_id": chat_id, "text": reply})
+
     return "ok"
 
 if __name__ == '__main__':
