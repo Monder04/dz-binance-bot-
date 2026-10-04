@@ -1,8 +1,14 @@
 import os
-import threading
+import logging
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import asyncio
+import threading
+
+# Logging باش نشوفو الأخطاء
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
@@ -15,15 +21,15 @@ if not TOKEN:
 REF_CODE = "945179068"
 
 web_app = Flask(__name__)
+
 @web_app.route('/')
 def home():
-    return f"Bot running! Ref: {REF_CODE} - OK"
+    status = "OK" if TOKEN else "TOKEN MISSING!"
+    return f"Bot running! Ref: {REF_CODE} - {status} - Live at {os.getenv('RENDER_EXTERNAL_URL','local')}"
 
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    web_app.run(host='0.0.0.0', port=port)
-
-threading.Thread(target=run_flask, daemon=True).start()
+@web_app.route('/health')
+def health():
+    return "OK"
 
 TRADERS = [
     {"id": "101", "name": "CryptoDZ_Spot", "roi": "+34.2%", "win": "89%", "followers": "1.2K", "risk": "منخفض"},
@@ -79,17 +85,32 @@ async def sub_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ اشتركت في {context.args[0] if context.args else ''} - راح نبعثلك التنبيهات!")
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"كودك: {REF_CODE} - /rank - /trader 101")
+    await update.message.reply_text(f"كودك: {REF_CODE} - /rank - /trader 101 - الموقع: https://dz-binance-bot.onrender.com")
+
+def run_bot():
+    if not TOKEN:
+        logger.error("TOKEN not found! Set env TOKEN")
+        return
+    logger.info(f"Bot starting ref {REF_CODE}")
+    try:
+        app = ApplicationBuilder().token(TOKEN).build()
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CommandHandler("rank", rank_cmd))
+        app.add_handler(CommandHandler("trader", trader_cmd))
+        app.add_handler(CommandHandler("sub", sub_cmd))
+        app.add_handler(CommandHandler("help", help_cmd))
+        # مهم باش ما يبقاش Conflict
+        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        logger.error(f"Bot crashed: {e}")
+        # لا تخرج، خلي Flask يخدم
 
 if __name__ == "__main__":
-    if not TOKEN:
-        print("TOKEN not found! Set env TOKEN")
-        exit(1)
-    print(f"Bot starting ref {REF_CODE}")
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("rank", rank_cmd))
-    app.add_handler(CommandHandler("trader", trader_cmd))
-    app.add_handler(CommandHandler("sub", sub_cmd))
-    app.add_handler(CommandHandler("help", help_cmd))
-    app.run_polling()
+    # شغل البوت في thread منفصل، و Flask في الرئيسي باش Render يشوفو
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    
+    port = int(os.environ.get("PORT", 10000))
+    logger.info(f"Starting Flask on port {port}")
+    # use_reloader=False مهم في Render
+    web_app.run(host='0.0.0.0', port=port, use_reloader=False)
