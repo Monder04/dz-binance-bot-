@@ -3,10 +3,8 @@ import logging
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import asyncio
 import threading
 
-# Logging باش نشوفو الأخطاء
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ web_app = Flask(__name__)
 @web_app.route('/')
 def home():
     status = "OK" if TOKEN else "TOKEN MISSING!"
-    return f"Bot running! Ref: {REF_CODE} - {status} - Live at {os.getenv('RENDER_EXTERNAL_URL','local')}"
+    return f"Bot running! Ref: {REF_CODE} - {status} - Live"
 
 @web_app.route('/health')
 def health():
@@ -91,7 +89,7 @@ def run_bot():
     if not TOKEN:
         logger.error("TOKEN not found! Set env TOKEN")
         return
-    logger.info(f"Bot starting ref {REF_CODE}")
+    logger.info(f"Bot starting ref {REF_CODE} TOKEN={TOKEN[:6]}...")
     try:
         app = ApplicationBuilder().token(TOKEN).build()
         app.add_handler(CommandHandler("start", start))
@@ -99,18 +97,17 @@ def run_bot():
         app.add_handler(CommandHandler("trader", trader_cmd))
         app.add_handler(CommandHandler("sub", sub_cmd))
         app.add_handler(CommandHandler("help", help_cmd))
-        # مهم باش ما يبقاش Conflict
         app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
     except Exception as e:
         logger.error(f"Bot crashed: {e}")
-        # لا تخرج، خلي Flask يخدم
+
+# مهم جدا: شغل البوت حتى لو Render يشغل بـ gunicorn (مو ب python bot.py)
+# هذا السطر يخلي البوت يبدا مباشرة كي يحمل الملف
+bot_thread = threading.Thread(target=run_bot, daemon=True)
+bot_thread.start()
+logger.info("Bot thread launched on import")
 
 if __name__ == "__main__":
-    # شغل البوت في thread منفصل، و Flask في الرئيسي باش Render يشوفو
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-    
     port = int(os.environ.get("PORT", 10000))
     logger.info(f"Starting Flask on port {port}")
-    # use_reloader=False مهم في Render
     web_app.run(host='0.0.0.0', port=port, use_reloader=False)
