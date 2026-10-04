@@ -7,18 +7,19 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
 app = Flask(__name__)
 
+REF_LINK = "https://t.me/dz_binance_copy_bot?start=945179068"
+REF_CODE = "945179068"
+
 @app.route('/')
 def home():
-    return "البوت يعمل! المرجع: 945179068 - موافق - مباشر"
+    return f"البوت يعمل! {REF_CODE}"
 
 @app.route('/setwebhook')
 def set_webhook():
-    if not TOKEN or not WEBHOOK_URL:
-        return "حط TOKEN و WEBHOOK_URL في Environment أولا"
     url = f"https://api.telegram.org/bot{TOKEN}/setWebhook"
     data = {"url": f"{WEBHOOK_URL}/webhook"}
     r = requests.post(url, json=data)
-    return f"Webhook set: {r.text}"
+    return f"Webhook: {r.text}"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -28,13 +29,18 @@ def webhook():
         text = data["message"].get("text", "")
 
         if text == "/start":
-            reply = "مرحبا! 🎉\nرابط الاحالة تاعك:\nhttps://t.me/dz_binance_copy_bot?start=945179068\n\nالمرجع: 945179068"
+            reply = f"مرحبا! 🎉\nرابط الاحالة تاعك:\n{REF_LINK}\n\nالمرجع: {REF_CODE}\n\nالأوامر:\n/rank - ترتيبك\n/trader - المتداولين\n/sub - الاشتراك"
+        elif text == "/rank":
+            reply = f"🏆 ترتيبك الحالي\n\nالمرجع تاعك: {REF_CODE}\nرابطك: {REF_LINK}\n\nشارك الرابط باش تطلع في الترتيب!"
+        elif text == "/trader":
+            reply = "📈 قائمة المتداولين\n\nقريبا - سيتم اضافة المتداولين هنا"
+        elif text == "/sub":
+            reply = f"💎 الاشتراك\n\nاشترك عبر رابط الاحالة:\n{REF_LINK}\n\nالمرجع: {REF_CODE}"
         else:
-            reply = f"استقبلت: {text}"
+            reply = f"استقبلت: {text}\n\nجرب /start"
 
         requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                       json={"chat_id": chat_id, "text": reply})
-
     return "ok"
 
 if __name__ == '__main__':
