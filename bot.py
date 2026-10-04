@@ -1,127 +1,83 @@
 import os
 import logging
-from flask import Flask
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import threading
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+import asyncio
+
+TOKEN = os.environ.get("BOT_TOKEN", "8874475066:AAG6DOUIbPgNbLxELf9zY4jI1ryVJ60Mf-4") # حط التوكن في Environment تاع Render
+REF_CODE = "945179068"
+REF_LINK = f"https://www.binance.com/en/copy-trading?ref={REF_CODE}"
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")  # مثلا https://dz-binance-bot.onrender.com/webhook
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("TOKEN")
-if not TOKEN:
-    try:
-        with open("token.txt", "r", encoding="utf-8") as f:
-            TOKEN = f.read().strip()
-    except:
-        TOKEN = None
-
-REF_CODE = "945179068"
-
-web_app = Flask(__name__)
-
-@web_app.route('/')
-def home():
-    status = "OK" if TOKEN else "TOKEN MISSING!"
-    return f"Bot running! Ref: {REF_CODE} - {status} - Live"
-
-@web_app.route('/health')
-def health():
-    return "OK"
-
-TRADERS = [
-    {"id": "101", "name": "CryptoDZ_Spot", "roi": "+34.2%", "win": "89%", "followers": "1.2K", "risk": "منخفض"},
-    {"id": "102", "name": "BNB_Scalper", "roi": "+28.7%", "win": "84%", "followers": "890", "risk": "متوسط"},
-    {"id": "103", "name": "Halal_Trader", "roi": "+22.5%", "win": "91%", "followers": "2.1K", "risk": "منخفض جدا"},
-    {"id": "104", "name": "Spot_Master", "roi": "+41.1%", "win": "82%", "followers": "650", "risk": "متوسط"},
-    {"id": "105", "name": "Algeria_Whale", "roi": "+19.8%", "win": "95%", "followers": "3.4K", "risk": "منخفض"},
+TOP_TRADERS = [
+    {"name": "CryptoKing", "pnl": "+182%", "win": "78%", "followers": "12.5K"},
+    {"name": "SOL_Master", "pnl": "+124%", "win": "82%", "followers": "8.2K"},
+    {"name": "BNB_Hunter", "pnl": "+98%", "win": "75%", "followers": "5.9K"},
 ]
 
+# --- دوال البوت ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ref = context.args[0] if context.args else "بدون"
-    text = f"""
-🚀 مرحبا بيك في بوت نسخ التداول الفوري SPOT 🇩🇿
-
-✅ بدون فيوتشر - بدون رافعة - بدون تصفية
-✅ نسخ آمن 100% فوري فقط
-
-كودك: {REF_CODE}
-دخل بيه: {ref}
-
-الأوامر:
-/rank - أفضل 5 متداولين
-/trader 101 - تفاصيل متداول
-/sub 101 - اشتراك
-/help - مساعدة
-
-رابطك: https://www.binance.com/referral/mine?ref={REF_CODE}
-"""
-    keyboard = [[InlineKeyboardButton("🚀 ابدأ النسخ الآن", url=f"https://www.binance.com/referral/mine?ref={REF_CODE}")]]
+    keyboard = [
+        [InlineKeyboardButton("📊 أفضل المتداولين /rank", callback_data="rank")],
+        [InlineKeyboardButton("🔗 رابط التسجيل بكودي", url=REF_LINK)],
+    ]
+    text = f"أهلا بيك! 🇩🇿\nالبوت يعمل! المرجع: {REF_CODE} - موافق - مباشر\n\n/rank - أفضل المتداولين\n/sub - كيفاش تنسخ"
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def rank_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "🏆 أفضل متداولين SPOT هذا الأسبوع:\n\n"
-    for t in TRADERS:
-        msg += f"{t['id']} - {t['name']}\n📈 ROI: {t['roi']} | ✅ {t['win']} | 👥 {t['followers']}\n /trader {t['id']} | /sub {t['id']}\n\n"
-    msg += f"\n🔗 رابط النسخ:\nhttps://www.binance.com/referral/mine?ref={REF_CODE}"
-    keyboard = [[InlineKeyboardButton("🚀 ابدأ النسخ", url=f"https://www.binance.com/referral/mine?ref={REF_CODE}")]]
-    await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def trader_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("اكتب: /trader 101")
-        return
-    tid = context.args[0]
-    t = next((x for x in TRADERS if x['id']==tid), None)
-    if not t:
-        await update.message.reply_text("❌ غير موجود. /rank")
-        return
-    msg = f"👤 {t['name']}\nROI: {t['roi']}\nنجاح: {t['win']}\nمتابعين: {t['followers']}\nمخاطرة: {t['risk']}\n\nرابط النسخ: https://www.binance.com/referral/mine?ref={REF_CODE}"
+async def rank_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = "🔥 أفضل متداولي اليوم:\n\n"
+    for i, t in enumerate(TOP_TRADERS, 1):
+        msg += f"{i}. {t['name']} - {t['pnl']} ✅ {t['win']}\n"
+    msg += f"\nسجل هنا: {REF_LINK}\nكود: {REF_CODE}"
     await update.message.reply_text(msg)
 
-async def sub_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"✅ اشتركت في {context.args[0] if context.args else ''} - راح نبعثلك التنبيهات!")
+async def trader_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"اكتب /rank باش تشوف القائمة\nرابط التسجيل: {REF_LINK}")
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"كودك: {REF_CODE} - /rank - /trader 101 - الموقع: https://dz-binance-bot.onrender.com")
+async def sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"سجل من هنا باش تنسخ:\n{REF_LINK}\nكود الإحالة: {REF_CODE}")
 
-def run_bot():
-    if not TOKEN:
-        logger.error("TOKEN not found! Set env TOKEN")
-        return
-    import asyncio
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    except Exception as e:
-        logger.error(f"Loop error: {e}")
-    logger.info(f"Bot starting ref {REF_CODE} TOKEN={TOKEN[:6] if TOKEN else 'NONE'}...")
-    try:
-        app = ApplicationBuilder().token(TOKEN).build()
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("rank", rank_cmd))
-        app.add_handler(CommandHandler("trader", trader_cmd))
-        app.add_handler(CommandHandler("sub", sub_cmd))
-        app.add_handler(CommandHandler("help", help_cmd))
-        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES, stop_signals=None)
-    except Exception as e:
-        logger.error(f"Bot crashed: {e}")
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "rank":
+        await rank_command(update, context)
 
-# مهم جدا: شغل البوت في كل الحالات
-def start_bot_thread():
-    thread = threading.Thread(target=run_bot, daemon=True, name="BotPolling")
-    thread.start()
-    logger.info("Bot thread launched")
-    return thread
+# إعداد التطبيق
+application = Application.builder().token(TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("rank", rank_command))
+application.add_handler(CommandHandler("trader", trader_command))
+application.add_handler(CommandHandler("sub", sub_command))
+application.add_handler(CallbackQueryHandler(button_handler))
 
-# شغل البوت مباشرة عند الاستيراد (لـ gunicorn)
-start_bot_thread()
+# Flask
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return f"البوت يعمل! المرجع: {REF_CODE} - موافق - مباشر"
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    # استقبال رسائل تلغرام
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    asyncio.run(application.process_update(update))
+    return "ok"
+
+@app.route("/setwebhook")
+def set_webhook():
+    # هادي تزورها مرة وحدة باش تربط تلغرام بـ Render
+    if not WEBHOOK_URL:
+        return "حط WEBHOOK_URL في Environment أولا"
+    async def _set():
+        await application.bot.set_webhook(url=WEBHOOK_URL)
+    asyncio.run(_set())
+    return f"تم ربط الويب هوك: {WEBHOOK_URL}"
 
 if __name__ == "__main__":
-    # لما نشغل بـ python bot.py
-    port = int(os.environ.get("PORT", 10000))
-    logger.info(f"Starting Flask on port {port} - Ref {REF_CODE}")
-    web_app.run(host='0.0.0.0', port=port, use_reloader=False)
-else:
-    # لما يشغل بـ gunicorn
-    logger.info(f"Flask app loaded for gunicorn - Ref {REF_CODE} - Token {'OK' if TOKEN else 'MISSING'}")
+    # للتجربة المحلية فقط
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
